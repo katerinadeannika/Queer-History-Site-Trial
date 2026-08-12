@@ -1,10 +1,11 @@
-name: Apply shared chapter template
+name: Apply unified site template
 on:
   push:
     branches: [template-integration]
     paths:
       - 'chapter-theme.css'
       - 'chapter-theme.js'
+      - 'site.css'
       - '.github/workflows/apply-chapter-template.yml'
   workflow_dispatch:
 permissions:
@@ -16,12 +17,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Attach shared chapter theme
+      - name: Attach shared template
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          targets = [p for p in Path('.').glob('chapter-*.html') if p.name != 'chapter-template.html']
+          targets = [Path('chapters.html'), Path('research.html')] + [p for p in Path('.').glob('chapter-*.html') if p.name != 'chapter-template.html']
           for path in targets:
               text = path.read_text(encoding='utf-8')
               text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.S|re.I)
@@ -34,6 +35,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add chapter-*.html
-          git diff --cached --quiet || git commit -m 'Apply shared chapter template'
+          git add chapters.html research.html chapter-*.html
+          git diff --cached --quiet || git commit -m 'Apply unified template across public pages'
           git push
