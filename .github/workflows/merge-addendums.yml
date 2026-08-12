@@ -1,17 +1,24 @@
 name: Merge editorial addendums
 on:
-  workflow_dispatch:
+  push:
+    branches: [editorial-source]
+    paths:
+      - 'Before_the_Name_image_links_appendix.md'
+      - 'audiovisual-reference-addendum-1880-1969.md'
+      - 'queer-history-daphne-du-maurier-and-screen-literary-figures-addendum.md'
+      - 'queer-history-literary-and-hollywood-evidence-addendum-v2.md'
+      - 'tools/merge_addendums.py'
+      - '.github/workflows/merge-addendums.yml'
 permissions:
   contents: write
 jobs:
   merge:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build combined addendum
-        run: python tools/merge_addendums.py
-      - name: Commit generated addendum
-        run: |
+      - run: python tools/merge_addendums.py
+      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Before_the_Name_combined_addendum.md
