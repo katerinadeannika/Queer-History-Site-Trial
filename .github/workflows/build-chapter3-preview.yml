@@ -1,0 +1,25 @@
+name: Render full Chapter 3 editorial preview
+on:
+  push:
+    branches: [editorial-source]
+    paths:
+      - 'tools/build_chapter3_preview.py'
+permissions:
+  contents: write
+jobs:
+  render:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install markdown
+      - run: python tools/build_chapter3_preview.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chapter-03-1890s.preview.html
+          git diff --cached --quiet || git commit -m "Render full Chapter 3 editorial preview"
+          git push
