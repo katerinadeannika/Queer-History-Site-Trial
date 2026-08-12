@@ -12,17 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
-      - name: Publish Chapter 12 to main
+      - name: Import verified Chapter 12 preview
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cp chapter-12-end-material.preview.html /tmp/chapter-12-end-material.html
-          git fetch origin main:refs/remotes/origin/main
-          git checkout -B main refs/remotes/origin/main
-          cp /tmp/chapter-12-end-material.html chapter-12-end-material.html
+          curl -fsSL https://raw.githubusercontent.com/katerinadeannika/Queer-History-Site-Trial/editorial-source/chapter-12-end-material.preview.html -o chapter-12-end-material.html
+      - name: Add Chapter 12 to the chapter index
+        shell: bash
+        run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('chapters.html')
@@ -34,6 +33,12 @@ jobs:
                   raise SystemExit('chapters.html has no closing main tag; aborting')
               p.write_text(t.replace('</main>', block + '</main>', 1), encoding='utf-8')
           PY
+      - name: Commit published Chapter 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add chapter-12-end-material.html chapters.html
           git diff --cached --quiet || git commit -m "Publish verified Chapter 12"
           git push origin HEAD:main
