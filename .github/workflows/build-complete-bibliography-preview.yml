@@ -1,0 +1,21 @@
+name: Build complete deduplicated bibliography preview
+on:
+  push:
+    branches: [editorial-source]
+    paths:
+      - 'tools/build_complete_bibliography_preview.py'
+permissions:
+  contents: write
+jobs:
+  render:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python tools/build_complete_bibliography_preview.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bibliography.preview.html
+          git diff --cached --quiet || git commit -m "Render complete deduplicated bibliography preview"
+          git push
