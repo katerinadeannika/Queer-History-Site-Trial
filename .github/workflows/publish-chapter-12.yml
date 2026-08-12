@@ -29,9 +29,12 @@ jobs:
           marker = '<!-- chapter-12-end-material -->'
           block = '<!-- chapter-12-end-material --><section class="chapter-list" id="chapter-12"><h2>End material</h2><ul><li><a href="chapter-12-end-material.html">Chapter 12 — End Material: Archive, Rights, and Research Toolkit</a></li></ul></section>'
           if marker not in t:
-              if '</main>' not in t:
-                  raise SystemExit('chapters.html has no closing main tag; aborting')
-              p.write_text(t.replace('</main>', block + '</main>', 1), encoding='utf-8')
+              for anchor in ('</main>', '</body>', '</html>'):
+                  if anchor in t:
+                      p.write_text(t.replace(anchor, block + anchor, 1), encoding='utf-8')
+                      break
+              else:
+                  p.write_text(t + '\n' + block + '\n', encoding='utf-8')
           PY
       - name: Commit published Chapter 12
         shell: bash
