@@ -1,0 +1,40 @@
+name: Publish verified Chapters 12 through 14
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/publish-chapters12-14.yml']
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp chapter-12-end-material.preview.html /tmp/chapter-12-end-material.html
+          cp chapter-13-further-reading.preview.html /tmp/chapter-13-further-reading.html
+          cp chapter-14-bibliography.preview.html /tmp/chapter-14-bibliography.html
+          git fetch origin main
+          git checkout main
+          cp /tmp/chapter-12-end-material.html chapter-12-end-material.html
+          cp /tmp/chapter-13-further-reading.html chapter-13-further-reading.html
+          cp /tmp/chapter-14-bibliography.html chapter-14-bibliography.html
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('chapters.html')
+          text = path.read_text(encoding='utf-8')
+          marker = '<!-- end-material-chapters -->'
+          block = '''<section class="chapter-list" id="end-material-chapters"><h2>End material</h2><ul><li><a href="chapter-12-end-material.html">Chapter 12 — End Material: Archive, Rights, and Research Toolkit</a></li><li><a href="chapter-13-further-reading.html">Chapter 13 — Further Reading</a></li><li><a href="chapter-14-bibliography.html">Chapter 14 — Bibliography</a></li></ul></section>'''
+          if marker not in text:
+              if '</main>' not in text: raise SystemExit('chapters.html has no closing main tag; aborting')
+              text = text.replace('</main>', marker + block + '</main>', 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+          git add chapter-12-end-material.html chapter-13-further-reading.html chapter-14-bibliography.html chapters.html
+          git diff --cached --quiet || git commit -m "Publish verified Chapters 12 through 14"
+          git push origin main
