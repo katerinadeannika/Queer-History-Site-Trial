@@ -1,0 +1,86 @@
+name: Consolidate bibliography into Chapter 14
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/consolidate-bibliography.yml']
+permissions:
+  contents: write
+jobs:
+  consolidate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Merge sources and redirect site links
+        shell: bash
+        run: |
+          python - <<'PY'
+          import html, re, shutil
+          from pathlib import Path
+          from urllib.parse import urlsplit, urlunsplit
+
+          root=Path('.')
+          main=root/'bibliography.html'; target=root/'chapter-14-bibliography.html'
+          archive=root/'archive'; archive.mkdir(exist_ok=True)
+          shutil.copy2(main, archive/'bibliography-before-chapter14-merge.html')
+          old=main.read_text(encoding='utf-8'); t=target.read_text(encoding='utf-8')
+          url_re=re.compile(r'''(?ix)\b(?:https?://|www\.|doi:\s*10\.)[^\s<>"']+''')
+          attr_re=re.compile(r'''(?is)\b(?:href|src|poster|data|cite|data-source|data-citation)\s*=\s*["']([^"']+)["']''')
+          li_re=re.compile(r'''(?is)<li\b[^>]*>.*?</li>''')
+          tag_re=re.compile(r'(?is)<[^>]+>'); trail='.,;:!?)]}\"\''
+          start='<!-- MERGED-SITE-BIBLIOGRAPHY:START -->'; end='<!-- MERGED-SITE-BIBLIOGRAPHY:END -->'
+          def norm(v):
+              v=html.unescape(v).strip().rstrip(trail)
+              if v.lower().startswith('doi:'): return 'doi:'+re.sub(r'\s+','',v[4:]).lower()
+              raw='https://'+v if v.lower().startswith('www.') else v; p=urlsplit(raw)
+              if p.scheme not in {'http','https'}: return ''
+              host=p.netloc.lower(); host=host[4:] if host.startswith('www.') else host
+              return urlunsplit((p.scheme.lower(),host,p.path.rstrip('/'),p.query,''))
+          def urls(s): return {norm(v) for v in attr_re.findall(s)+url_re.findall(s) if norm(v)}
+          def key(item):
+              found=sorted(urls(item))
+              return 'url:'+found[0] if found else 'text:'+re.sub(r'\s+',' ',html.unescape(tag_re.sub(' ',item))).strip().lower()
+          def section(content):
+              a,b=content.find(start),content.find(end)
+              return content[a+len(start):b] if a>=0 and b>a else ''
+          def replace(content, body):
+              a,b=content.find(start),content.find(end)
+              if a>=0 and b>a: return content[:a+len(start)]+'\n'+body+'\n'+content[b:]
+              block='\n'+start+'\n'+body+'\n'+end+'\n'
+              for anchor in ('</main>','</body>','</html>'):
+                  if anchor in content:return content.replace(anchor,block+anchor,1)
+              return content+block
+          existing={key(x) for x in li_re.findall(t)}
+          merged=[]
+          for item in li_re.findall(old):
+              k=key(item)
+              if k and k not in existing:
+                  existing.add(k); merged.append(item)
+          chapter_urls=set()
+          for p in root.glob('chapter-*.html'):
+              if p.name!='chapter-template.html': chapter_urls |= urls(p.read_text(encoding='utf-8'))
+          known=urls(old)|urls(t)
+          missing=sorted(chapter_urls-known)
+          missing_items=[f'<li><a href="{html.escape(u,quote=True)}">{html.escape(u)}</a> <em>Added from a linked chapter reference.</em></li>' for u in missing if not u.startswith('doi:')]
+          missing_items += [f'<li>{html.escape(u)} <em>Added from a linked chapter reference.</em></li>' for u in missing if u.startswith('doi:')]
+          body='<section id="merged-site-bibliography"><h2>Consolidated site bibliography</h2><p>This canonical inventory merges unique records from the former site bibliography and linked sources found across Chapters 1–14.</p><h3>Unique records imported from the former bibliography</h3><ul>'+''.join(merged)+'</ul><h3>Linked chapter sources added by audit</h3><ul>'+''.join(missing_items)+'</ul></section>'
+          target.write_text(replace(t,body),encoding='utf-8')
+          for p in root.glob('*.html'):
+              if p.name=='bibliography.html': continue
+              content=p.read_text(encoding='utf-8')
+              updated=content.replace('bibliography.html','chapter-14-bibliography.html')
+              if updated!=content:p.write_text(updated,encoding='utf-8')
+          main.unlink()
+          PY
+      - name: Commit canonical bibliography
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A bibliography.html chapter-14-bibliography.html archive/bibliography-before-chapter14-merge.html '*.html'
+          git diff --cached --quiet || git commit -m "Consolidate bibliography into Chapter 14"
+          git push origin HEAD:main
