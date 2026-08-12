@@ -1,0 +1,25 @@
+name: Publish verified Chapter 2
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/publish-chapter2.yml']
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp chapter-02-1880s.preview.html /tmp/chapter-02-1880s.html
+          git fetch origin main
+          git checkout main
+          cp /tmp/chapter-02-1880s.html chapter-02-1880s.html
+          git add chapter-02-1880s.html
+          git diff --cached --quiet || git commit -m "Publish full Chapter 2"
+          git push origin main
