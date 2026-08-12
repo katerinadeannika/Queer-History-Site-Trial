@@ -1,0 +1,32 @@
+name: Build procurement data
+
+on:
+  push:
+    branches: [pricing-and-sourcing]
+    paths:
+      - chapter-14-bibliography.html
+      - scripts/build-procurement-data.mjs
+      - .github/workflows/build-procurement-data.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/build-procurement-data.mjs chapter-14-bibliography.html data/procurement-source.json
+      - name: Commit generated procurement data
+        run: |
+          if git diff --quiet -- data/procurement-source.json; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/procurement-source.json
+          git commit -m 'Generate procurement source data'
+          git push
