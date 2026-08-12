@@ -1,0 +1,47 @@
+name: Publish verified Chapter 13
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/publish-chapter-13.yml']
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Import verified Chapter 13 preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/katerinadeannika/Queer-History-Site-Trial/editorial-source/chapter-13-further-reading.preview.html -o chapter-13-further-reading.html
+      - name: Add Chapter 13 to the chapter index
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('chapters.html')
+          t = p.read_text(encoding='utf-8')
+          marker = '<!-- chapter-13-further-reading -->'
+          block = '<!-- chapter-13-further-reading --><section class="chapter-list" id="chapter-13"><h2>Further reading</h2><ul><li><a href="chapter-13-further-reading.html">Chapter 13 — Further Reading</a></li></ul></section>'
+          if marker not in t:
+              for anchor in ('</main>', '</body>', '</html>'):
+                  if anchor in t:
+                      p.write_text(t.replace(anchor, block + anchor, 1), encoding='utf-8')
+                      break
+              else:
+                  p.write_text(t + '\n' + block + '\n', encoding='utf-8')
+          PY
+      - name: Commit published Chapter 13
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chapter-13-further-reading.html chapters.html
+          git diff --cached --quiet || git commit -m "Publish verified Chapter 13"
+          git push origin HEAD:main
