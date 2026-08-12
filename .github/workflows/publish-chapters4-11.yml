@@ -1,0 +1,33 @@
+name: Publish verified Chapters 4 through 11
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/publish-chapters4-11.yml']
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/chapter-previews
+          cp chapter-04-1900s.preview.html /tmp/chapter-previews/chapter-04-1900s.html
+          cp chapter-05-1910s.preview.html /tmp/chapter-previews/chapter-05-1910s.html
+          cp chapter-06-1920s.preview.html /tmp/chapter-previews/chapter-06-1920s.html
+          cp chapter-07-1930s.preview.html /tmp/chapter-previews/chapter-07-1930s.html
+          cp chapter-08-1940s.preview.html /tmp/chapter-previews/chapter-08-1940s.html
+          cp chapter-09-1950s.preview.html /tmp/chapter-previews/chapter-09-1950s.html
+          cp chapter-10-1960s.preview.html /tmp/chapter-previews/chapter-10-1960s.html
+          cp chapter-11-threads.preview.html /tmp/chapter-previews/chapter-11-threads.html
+          git fetch origin main
+          git checkout main
+          cp /tmp/chapter-previews/* .
+          git add chapter-04-1900s.html chapter-05-1910s.html chapter-06-1920s.html chapter-07-1930s.html chapter-08-1940s.html chapter-09-1950s.html chapter-10-1960s.html chapter-11-threads.html
+          git diff --cached --quiet || git commit -m "Publish full Chapters 4 through 11"
+          git push origin main
