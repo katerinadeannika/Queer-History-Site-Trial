@@ -1,0 +1,39 @@
+name: Apply shared chapter template
+on:
+  push:
+    branches: [template-integration]
+    paths:
+      - 'chapter-theme.css'
+      - 'chapter-theme.js'
+      - '.github/workflows/apply-chapter-template.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach shared chapter theme
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          targets = [p for p in Path('.').glob('chapter-*.html') if p.name != 'chapter-template.html']
+          for path in targets:
+              text = path.read_text(encoding='utf-8')
+              text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.S|re.I)
+              text = re.sub(r'\s*(?:<link[^>]+href=["\'](?:site\.css|chapter-theme\.css)["\'][^>]*>|<script[^>]+src=["\']chapter-theme\.js["\'][^>]*></script>)', '', text, flags=re.I)
+              injection = '<link rel="stylesheet" href="chapter-theme.css">\n<script defer src="chapter-theme.js"></script>'
+              text = re.sub(r'</head>', injection + '\n</head>', text, count=1, flags=re.I)
+              path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit normalized pages
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add chapter-*.html
+          git diff --cached --quiet || git commit -m 'Apply shared chapter template'
+          git push
