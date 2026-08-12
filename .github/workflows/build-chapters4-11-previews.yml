@@ -1,0 +1,25 @@
+name: Render editorial previews for Chapters 4 through 11
+on:
+  push:
+    branches: [editorial-source]
+    paths:
+      - 'tools/build_chapters4_11_previews.py'
+permissions:
+  contents: write
+jobs:
+  render:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install markdown
+      - run: python tools/build_chapters4_11_previews.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chapter-04-1900s.preview.html chapter-05-1910s.preview.html chapter-06-1920s.preview.html chapter-07-1930s.preview.html chapter-08-1940s.preview.html chapter-09-1950s.preview.html chapter-10-1960s.preview.html chapter-11-threads.preview.html
+          git diff --cached --quiet || git commit -m "Render editorial previews for Chapters 4 through 11"
+          git push
