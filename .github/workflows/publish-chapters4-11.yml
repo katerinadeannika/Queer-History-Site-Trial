@@ -1,3 +1,4 @@
+# Retry trigger for the verified Chapters 4–11 publication.
 name: Publish verified Chapters 4 through 11
 on:
   push:
