@@ -1,0 +1,78 @@
+name: Audit chapter sources against bibliographies
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/audit-chapter-sources.yml']
+permissions:
+  contents: write
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Audit Chapters 1 through 14
+        shell: bash
+        run: |
+          python - <<'PY'
+          import html, re
+          from collections import defaultdict
+          from pathlib import Path
+          from urllib.parse import urlsplit, urlunsplit
+
+          root = Path('.')
+          url_re = re.compile(r'''(?ix)\b(?:https?://|www\.|doi:\s*10\.)[^\s<>"']+''')
+          attr_re = re.compile(r'''(?is)\b(?:href|src|poster|data|cite|data-source|data-citation)\s*=\s*["']([^"']+)["']''')
+          trail = '.,;:!?)]}\"\''
+          def norm(value):
+              value = html.unescape(value).strip().rstrip(trail)
+              if value.lower().startswith('doi:'):
+                  return 'doi:' + re.sub(r'\s+', '', value[4:]).lower()
+              raw = 'https://' + value if value.lower().startswith('www.') else value
+              p = urlsplit(raw)
+              if p.scheme not in {'http', 'https'}:
+                  return ''
+              host = p.netloc.lower()
+              if host.startswith('www.'): host = host[4:]
+              path = p.path.rstrip('/')
+              return urlunsplit((p.scheme.lower(), host, path, p.query, ''))
+          def urls(text):
+              return {norm(x) for x in attr_re.findall(text) + url_re.findall(text) if norm(x)}
+
+          chapters = sorted(root.glob('chapter-*.html'))
+          chapters = [p for p in chapters if p.name != 'chapter-template.html']
+          by_page = {p.name: urls(p.read_text(encoding='utf-8')) for p in chapters}
+          bib_files = [root/'bibliography.html', root/'chapter-14-bibliography.html']
+          bib_occurrences = defaultdict(list)
+          for p in bib_files:
+              for value in urls(p.read_text(encoding='utf-8')):
+                  bib_occurrences[value].append(p.name)
+          bibliography = set(bib_occurrences)
+          missing = {page: sorted(values-bibliography) for page, values in by_page.items() if values-bibliography}
+          duplicates = {value: files for value, files in bib_occurrences.items() if len(files) > 1}
+          all_chapter_urls = set().union(*by_page.values()) if by_page else set()
+          report = ['# Chapter source audit', '', f'- Chapters audited: {len(chapters)}', f'- Unique linked URL/DOI sources in chapters: {len(all_chapter_urls)}', f'- Unique linked URL/DOI sources in bibliography documents: {len(bibliography)}', f'- Chapter sources missing from both bibliography documents: {sum(len(v) for v in missing.values())}', f'- Exact normalized source duplicates across bibliography documents: {len(duplicates)}', '', '## Missing linked sources']
+          if missing:
+              for page, values in missing.items():
+                  report += [f'### {page}', *[f'- `{value}`' for value in values], '']
+          else:
+              report += ['None detected.', '']
+          report += ['## Duplicate bibliography sources']
+          if duplicates:
+              for value, files in sorted(duplicates.items()): report.append(f'- `{value}` — ' + ', '.join(files))
+          else:
+              report.append('None detected.')
+          report += ['', '## Method and limits', '- Compares normalized external URLs and DOI strings found in chapter HTML with those found in `bibliography.html` and `chapter-14-bibliography.html`.', '- Removes URL fragments and normalizes case, `www.`, and trailing slashes for comparison.', '- Does not evaluate unlinked prose citations that contain no URL or DOI.']
+          (root/'source-audit.md').write_text('\n'.join(report)+'\n', encoding='utf-8')
+          PY
+      - name: Commit audit report
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source-audit.md
+          git diff --cached --quiet || git commit -m "Audit chapter sources against bibliographies"
+          git push origin HEAD:main
