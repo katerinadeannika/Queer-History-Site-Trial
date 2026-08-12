@@ -1,0 +1,34 @@
+name: Apply shared stylesheet to public main page
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/apply-main-stylesheet.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          tag = '<link rel="stylesheet" href="site.css">'
+          if 'href="site.css"' not in text:
+              if '</head>' not in text:
+                  raise SystemExit('index.html has no closing head tag; aborting without changes')
+              text = text.replace('</head>', tag + '</head>', 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+          git add index.html
+          git diff --cached --quiet || git commit -m "Apply shared stylesheet to main page"
+          git push origin main
