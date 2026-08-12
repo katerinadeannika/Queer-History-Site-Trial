@@ -1,0 +1,20 @@
+name: Update bibliography inventory
+on:
+  push:
+    branches: [main]
+    paths: ['**.html', '**.htm', '**.jpg', '**.jpeg', '**.png', '**.gif', '**.webp', '**.svg', '**.mp3', '**.wav', '**.mp4', '**.webm']
+permissions:
+  contents: write
+jobs:
+  update-inventory:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python tools/update_source_inventory.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bibliography.html backup-sources.html
+          git diff --cached --quiet || git commit -m "Update bibliography source inventory"
+          git push
