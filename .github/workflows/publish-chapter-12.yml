@@ -10,25 +10,30 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - run: |
+      - name: Publish Chapter 12 to main
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp chapter-12-end-material.preview.html /tmp/chapter-12-end-material.html
-          git fetch origin main
-          git checkout -B main origin/main
+          git fetch origin main:refs/remotes/origin/main
+          git checkout -B main refs/remotes/origin/main
           cp /tmp/chapter-12-end-material.html chapter-12-end-material.html
           python - <<'PY'
           from pathlib import Path
-          p = Path('chapters.html'); t = p.read_text(encoding='utf-8')
+          p = Path('chapters.html')
+          t = p.read_text(encoding='utf-8')
           marker = '<!-- chapter-12-end-material -->'
           block = '<!-- chapter-12-end-material --><section class="chapter-list" id="chapter-12"><h2>End material</h2><ul><li><a href="chapter-12-end-material.html">Chapter 12 — End Material: Archive, Rights, and Research Toolkit</a></li></ul></section>'
           if marker not in t:
-              if '</main>' not in t: raise SystemExit('chapters.html has no closing main tag; aborting')
+              if '</main>' not in t:
+                  raise SystemExit('chapters.html has no closing main tag; aborting')
               p.write_text(t.replace('</main>', block + '</main>', 1), encoding='utf-8')
           PY
           git add chapter-12-end-material.html chapters.html
           git diff --cached --quiet || git commit -m "Publish verified Chapter 12"
-          git push origin main
+          git push origin HEAD:main
