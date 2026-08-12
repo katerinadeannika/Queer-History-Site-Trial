@@ -1,0 +1,19 @@
+name: Merge editorial addendums
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build combined addendum
+        run: python tools/merge_addendums.py
+      - name: Commit generated addendum
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Before_the_Name_combined_addendum.md
+          git diff --cached --quiet || git commit -m "Generate combined addendum"
+          git push
