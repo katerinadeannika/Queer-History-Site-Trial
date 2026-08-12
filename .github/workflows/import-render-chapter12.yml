@@ -1,0 +1,47 @@
+name: Import and render Chapter 12 end material
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/import-render-chapter12.yml']
+permissions:
+  contents: write
+jobs:
+  import-render:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install markdown
+      - run: |
+          curl -fsSL https://raw.githubusercontent.com/katerinadeannika/queer-history/main/12_End_Material_Archive_Rights_Research_Toolkit_updated_US_spelling.md -o chapter-12-end-material.md
+          test "$(git hash-object chapter-12-end-material.md)" = "675ba357cc5724442a49a2e6891d19d787b6b87a"
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          import html, re, markdown
+          source = Path('chapter-12-end-material.md').read_text(encoding='utf-8').strip()
+          section = '## Chapter 12 — End Material — Archive, Rights, and Research Toolkit\n\n' + source + '\n'
+          for name in ['Before_the_Name_complete_master.md', 'Before_the_Name_1880-1969.md']:
+              path = Path(name); text = path.read_text(encoding='utf-8')
+              if 'End Material — Archive, Rights, and Research Toolkit' not in text:
+                  path.write_text(text.rstrip() + '\n\n---\n\n' + section, encoding='utf-8')
+          links = re.findall(r'\[([^\]]+)\]\((https?://[^)]+)\)', source)
+          seen, cards = set(), []
+          for label, url in links:
+              key = re.sub(r'[?#].*$', '', url.lower()).rstrip('/')
+              if key in seen: continue
+              seen.add(key)
+              cards.append(f'<article class="media-reference"><h3>{html.escape(label)}</h3><p><a href="{html.escape(url, quote=True)}">Research, media, or rights resource</a></p></article>')
+          body = markdown.markdown(section, extensions=['extra','sane_lists','tables'])
+          out = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chapter 12 — End Material | Early Queer History</title><link rel="stylesheet" href="site.css"></head><body><header class="site-header"><a href="index.html">Home</a><a href="chapters.html">Chapters</a><a href="research.html">Research</a><a href="bibliography.html">Bibliography</a></header><main class="page chapter">{body}<section><h2>Research and rights resources</h2><div class="media-grid">{''.join(cards)}</div></section><nav class="chapter-nav"><a href="chapter-11-threads.html">← Previous chapter</a></nav></main><footer class="site-footer">Early Queer History · Chapter 12</footer></body></html>'''
+          Path('chapter-12-end-material.preview.html').write_text(out, encoding='utf-8')
+          PY
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chapter-12-end-material.md chapter-12-end-material.preview.html Before_the_Name_complete_master.md Before_the_Name_1880-1969.md
+          git diff --cached --quiet || git commit -m "Import and render Chapter 12 end material"
+          git push
