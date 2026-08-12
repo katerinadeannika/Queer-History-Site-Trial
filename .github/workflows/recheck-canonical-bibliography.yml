@@ -1,0 +1,93 @@
+name: Recheck canonical bibliography
+on:
+  push:
+    branches: [editorial-source]
+    paths: ['.github/workflows/recheck-canonical-bibliography.yml']
+permissions:
+  contents: write
+jobs:
+  recheck:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Rebuild canonical linked-source inventories
+        shell: bash
+        run: |
+          python - <<'PY'
+          import html, re
+          from collections import defaultdict
+          from pathlib import Path
+          from urllib.parse import urlsplit, urlunsplit
+
+          root=Path('.'); target=root/'chapter-14-bibliography.html'
+          tag_re=re.compile(r'''(?is)<(?P<tag>a|img|audio|video|source|iframe|embed|object)\b(?P<attrs>[^>]*)>''')
+          attr_re=re.compile(r'''(?is)\b(?P<name>href|src|poster|data|cite|data-source|data-citation)\s*=\s*["'](?P<value>[^"']+)["']''')
+          url_re=re.compile(r'''(?ix)\b(?:https?://|www\.|doi:\s*10\.)[^\s<>"']+''')
+          trail='.,;:!?)]}\"\''
+          starts={'direct':'<!-- AUTO-DIRECT-SOURCES:START -->','further':'<!-- AUTO-FURTHER-READING:START -->'}
+          ends={'direct':'<!-- AUTO-DIRECT-SOURCES:END -->','further':'<!-- AUTO-FURTHER-READING:END -->'}
+          kinds={'a':'Linked citation or external resource','img':'Image','audio':'Audio or radio','video':'Video','source':'Media source','iframe':'Embedded content','embed':'Embedded content','object':'Embedded content'}
+          def norm(v):
+              v=html.unescape(v).strip().rstrip(trail)
+              if v.lower().startswith('doi:'): return 'doi:'+re.sub(r'\s+','',v[4:]).lower()
+              raw='https://'+v if v.lower().startswith('www.') else v; p=urlsplit(raw)
+              if p.scheme in {'http','https'}:
+                  h=p.netloc.lower(); h=h[4:] if h.startswith('www.') else h
+                  return urlunsplit((p.scheme.lower(),h,p.path.rstrip('/'),p.query,''))
+              return v if v and not v.startswith(('#','mailto:','tel:','javascript:','data:')) else ''
+          def add(store,kind,value,page):
+              value=norm(value)
+              if not value:return
+              store.setdefault(value,{'kind':kind,'pages':set()})['pages'].add(page)
+          direct={}; further={}; candidates=[]
+          for p in sorted(root.glob('chapter-*.html')):
+              if p.name=='chapter-template.html':continue
+              store=further if p.name=='chapter-13-further-reading.html' else direct
+              text=p.read_text(encoding='utf-8')
+              for m in tag_re.finditer(text):
+                  tag=m['tag'].lower()
+                  for a in attr_re.finditer(m['attrs']):
+                      name,value=a['name'].lower(),a['value']
+                      if (tag=='a' and name!='href'):continue
+                      if tag in kinds:add(store,kinds[tag],value,p.name)
+              for value in url_re.findall(text):add(store,'In-text URL or DOI',value,p.name)
+              if re.search(r'(?i)\b(?:isbn|ed\.|press|university|publisher)\b',text) and not url_re.search(text):candidates.append(p.name)
+          direct={k:v for k,v in direct.items() if k not in further}
+          def render(title,entries):
+              groups=defaultdict(list)
+              for value,e in entries.items():groups[e['kind']].append((value,e))
+              out=[f'<section class="chapter-list"><h2>{title}</h2><p>Generated from current page references. Entries are normalized and deduplicated within this section.</p>']
+              for kind in sorted(groups):
+                  out += [f'<h3>{html.escape(kind)}</h3><ul>']
+                  for value,e in sorted(groups[kind]):
+                      pages=', '.join(sorted(e['pages'])); link=f'<a href="{html.escape(value,quote=True)}">{html.escape(value)}</a>' if not value.startswith('doi:') else html.escape(value)
+                      out.append(f'<li>{link} <em>Referenced in: {html.escape(pages)}</em></li>')
+                  out.append('</ul>')
+              return '\n'.join(out+['</section>'])
+          text=target.read_text(encoding='utf-8')
+          def replace(text,name,body):
+              a,b=starts[name],ends[name]; i,j=text.find(a),text.find(b)
+              if i>=0 and j>i:return text[:i+len(a)]+'\n'+body+'\n'+text[j:]
+              block='\n'+a+'\n'+body+'\n'+b+'\n'
+              for anchor in ('</main>','</body>','</html>'):
+                  if anchor in text:return text.replace(anchor,block+anchor,1)
+              return text+block
+          text=replace(text,'direct',render('Sources used directly in site text and media',direct))
+          text=replace(text,'further',render('Further reading — Chapter 13',further))
+          target.write_text(text,encoding='utf-8')
+          report=['# Site source recheck','',f'- Direct linked/media sources: {len(direct)}',f'- Chapter 13 Further reading sources: {len(further)}',f'- Pages with possible unlinked book/publisher prose to review: {len(candidates)}','', '## Pages needing manual book-citation review']
+          report += [f'- {x}' for x in candidates] or ['- None detected by the heuristic.']
+          report += ['', '## Scope', '- Inventories external URLs, DOIs, linked/local images, audio, video, and embeds found in chapter HTML.', '- Does not invent bibliographic metadata for unlinked prose references; possible candidates are reported for manual or web-verified review.']
+          (root/'site-source-recheck.md').write_text('\n'.join(report)+'\n',encoding='utf-8')
+          PY
+      - name: Commit recheck results
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add chapter-14-bibliography.html site-source-recheck.md
+          git diff --cached --quiet || git commit -m "Recheck canonical bibliography sources"
+          git push origin HEAD:main
