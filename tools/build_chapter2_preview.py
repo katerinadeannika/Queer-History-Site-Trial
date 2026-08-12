@@ -1,3 +1,4 @@
+# Retry trigger: force a fresh Chapter 2 editorial render.
 from pathlib import Path
 import html,re,markdown
 MAIN='Before_the_Name_1880-1969.md'
