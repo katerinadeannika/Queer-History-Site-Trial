@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars for local development. Do not commit .dev.vars.
+SERPAPI_KEY=
+EBAY_CLIENT_ID=
+EBAY_CLIENT_SECRET=
+GOOGLE_BOOKS_API_KEY=

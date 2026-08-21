@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricing and Sourcing This Project</title>
+  <link rel="stylesheet" href="site.css">
+  <style>
+    :root { --ink:#1f2933; --paper:#fffdf8; --accent:#7a245d; --line:#d9d1c7; --muted:#667085; }
+    body { background:var(--paper); color:var(--ink); }
+    main { max-width:1100px; margin:0 auto; padding:2rem 1.25rem 4rem; }
+    .lede { max-width:760px; color:var(--muted); }
+    .toolbar,.budgets { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; margin:1.5rem 0; }
+    button,select { font:inherit; border:1px solid var(--line); border-radius:.35rem; padding:.55rem .7rem; background:#fff; color:var(--ink); }
+    button { cursor:pointer; background:var(--accent); border-color:var(--accent); color:#fff; }
+    .notice { border-left:4px solid var(--accent); background:#f8eef5; padding:.9rem 1rem; margin:1rem 0; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1rem; }
+    article { border:1px solid var(--line); border-radius:.5rem; padding:1rem; background:#fff; display:flex; flex-direction:column; gap:.65rem; }
+    h1,h2,h3,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.4rem); } h3 { font-size:1.1rem; }
+    .meta,.status { color:var(--muted); font-size:.92rem; } .price { font-size:1.35rem; font-weight:700; color:var(--accent); }
+    .tag { display:inline-block; width:max-content; border-radius:999px; padding:.18rem .55rem; background:#efe8dd; font-size:.78rem; }
+    a { color:var(--accent); } .empty { grid-column:1/-1; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="index.html">← Return to the project</a></p>
+    <h1>Pricing and Sourcing This Project</h1>
+    <p class="lede">Use this guide to locate editions, library and database access, and rights materials. Consumer prices must be verified for the exact edition, condition, currency, shipping, and retailer before purchase.</p>
+    <div class="notice">Live retail results are unavailable until the Cloudflare environment has a configured price provider. Institutional databases and media rights display access or quote requirements instead of invented prices.</div>
+    <div class="toolbar">
+      <label>Category <select id="category"><option value="all">All sources</option><option value="books">Books to buy</option><option value="subscription">Subscription access</option><option value="library">Public, school, and academic libraries</option><option value="database">JSTOR and academic databases</option><option value="rights">Media, archives, and rights</option></select></label>
+      <button id="refresh" type="button">Refresh live prices</button>
+      <span class="meta" id="updated">Loading source data…</span>
+    </div>
+    <section aria-labelledby="packages"><h2 id="packages">Essential-source packages</h2><div class="budgets" id="budgets"></div></section>
+    <section aria-labelledby="sources"><h2 id="sources">Sources</h2><div class="grid" id="grid"></div></section>
+  </main>
+  <script>
+    const grid=document.querySelector('#grid'), category=document.querySelector('#category'), updated=document.querySelector('#updated'), budgets=document.querySelector('#budgets');
+    let sources=[];
+    const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+    function card(s){ const price=Number.isFinite(s.price)?`<p class="price">${money(s.price)}</p>`:''; const isbn=s.isbn?`ISBN: ${s.isbn}`:'Edition/ISBN to verify'; return `<article data-category="${s.category}"><span class="tag">${s.group||s.category}</span><h3>${s.title}</h3><p class="meta">${s.author||''}</p>${price}<p class="status">${s.accessNote||'No verified current price'}</p><p class="meta">${isbn}</p>${s.url?`<a href="${s.url}" rel="noopener">Open source ↗</a>`:''}</article>`; }
+    function render(){ const selected=category.value; const visible=sources.filter(s=>selected==='all'||s.category===selected); grid.innerHTML=visible.length?visible.map(card).join(''):'<p class="empty">No matching sources yet. Run the procurement-data build step to populate this guide from the bibliography.</p>'; }
+    function packageCards(){ [50,100,200,500].forEach(limit=>{ const chosen=sources.filter(s=>Number.isFinite(s.price)).sort((a,b)=>(a.priority||99)-(b.priority||99)||a.price-b.price); let total=0,count=0; for(const s of chosen){if(total+s.price<=limit){total+=s.price;count++;}} budgets.insertAdjacentHTML('beforeend',`<span class="tag">${money(limit)}: ${count} priced source${count===1?'':'s'} · ${money(total)}</span>`); }); }
+    category.addEventListener('change',render);
+    document.querySelector('#refresh').addEventListener('click',()=>{ updated.textContent='Live lookup requires configured provider keys; no unverified prices were shown.'; });
+    fetch('data/procurement-source.json').then(r=>r.json()).then(data=>{sources=data.sources||[]; updated.textContent=data.generatedAt?`Source data generated ${new Date(data.generatedAt).toLocaleString()}`:'Source data awaits the bibliography build step.'; render(); packageCards();}).catch(()=>{updated.textContent='Source data could not be loaded.';render();});
+  </script>
+</body>
+</html>
